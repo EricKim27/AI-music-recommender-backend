@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const filepath = path.join(__dirname, "data.json");
-
+const statpath = path.join(__dirname, "status.json")
 function GetJSON(data){
     try {
         return JSON.parse(data);
@@ -12,7 +12,21 @@ function GetJSON(data){
         return null;
     }
 }
-
+function setstat(stat) {
+    try {
+        fs.writeFile(statpath, `{ "status" : "${stat}" }`, (err) => {
+            if (err) {
+                console.log("File write error", err);
+                return 1;
+            }
+            return 0;
+        });
+        return 0;
+    } catch(err) {
+        console.log("error", err);
+        return 1;
+    }
+}
 const server = http.createServer((req, res) => {
     console.log(req.url);
     if(req.method === 'POST'){
@@ -36,8 +50,15 @@ const server = http.createServer((req, res) => {
                             console.log("File write error", err);
                             return res.status(500).send('Server Error');
                         }
-                        res.writeHead(200, { 'Content-type' : 'application/json' });
-                        res.end(JSON.stringify({ message: 'Data received successfully', data: parsed }));
+                        var ret = setstat(0);
+                        if(ret === 0){
+                            res.writeHead(200, { 'Content-type' : 'application/json' });
+                            res.end(JSON.stringify({ message: 'Data received successfully', data: parsed }));
+                        } else {
+                            res.writeHead(500, { 'Content-type' : 'application/json'});
+                            res.end('Internal Server Error');
+                        }
+
                     });
                 } catch (err) {
                     console.error('Error parsing JSON', err);
@@ -53,8 +74,23 @@ const server = http.createServer((req, res) => {
         if(req.url === "/api/getdata"){
             try {
                 const fetched = fs.readFileSync(filepath, 'utf8');
+                var ret = setstat(1);
+                if(ret === 0){
+                    res.writeHead(200, { 'Content-type' : 'application/json'});
+                    res.end(fetched);
+                } else {
+                    res.writeHead(500, { 'Content-type' : 'application/json'});
+                    res.end('Internal Server Error');
+                }
+            } catch (err) {
+                res.writeHead(500, { 'Content-type' : 'application/json'});
+                res.end('Internal Server Error');
+            }
+        } else if(req.url === "/api/status") {
+            try {
+                const status = fs.readFileSync(statpath, 'utf8')
                 res.writeHead(200, { 'Content-type' : 'application/json'});
-                res.end(fetched);
+                res.end(status);
             } catch (err) {
                 res.writeHead(500, { 'Content-type' : 'application/json'});
                 res.end('Internal Server Error');
